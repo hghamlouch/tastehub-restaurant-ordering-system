@@ -1,20 +1,24 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-function Checkout({ cart, setCart }) {
+function Checkout({ cart = [], clearCart }) {
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
     name: "",
     phone: "",
     address: "",
-    payment: "Cash on Delivery",
   });
 
-  const total = cart.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
+  const [loading, setLoading] = useState(false);
+
+  // Calculate total
+  const total = cart.reduce((sum, item) => {
+    const price = Number(item.price) || 0;
+    const quantity = Number(item.quantity) || 1;
+
+    return sum + price * quantity;
+  }, 0);
 
   const handleChange = (e) => {
     setForm({
@@ -23,126 +27,220 @@ function Checkout({ cart, setCart }) {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleOrder = async (e) => {
     e.preventDefault();
 
+    // Check delivery information
     if (!form.name || !form.phone || !form.address) {
-      alert("Please fill all fields");
+      alert("Please fill in all fields.");
       return;
     }
 
-    setCart([]);
-    navigate("/order-success");
+    // Check cart
+    if (cart.length === 0) {
+      alert("Your cart is empty.");
+      return;
+    }
+
+    // Get logged-in user
+    const savedUser = localStorage.getItem("user");
+
+    if (!savedUser) {
+      alert("Please login first.");
+      navigate("/login");
+      return;
+    }
+
+    let user;
+
+    try {
+      user = JSON.parse(savedUser);
+    } catch (error) {
+      localStorage.removeItem("user");
+      alert("Please login again.");
+      navigate("/login");
+      return;
+    }
+
+    if (!user || !user.id) {
+      alert("Please login again.");
+      navigate("/login");
+      return;
+    }
+
+    const userId = user.id;
+
+    try {
+      setLoading(true);
+
+      const response = await fetch(
+        "http://localhost:5000/api/orders",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify({
+            user_id: userId,
+            total: total,
+            status: "Pending",
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || "Failed to create order.");
+        return;
+      }
+
+      console.log("Order created:", data);
+
+      if (clearCart) {
+        clearCart();
+      }
+
+      navigate("/order-success");
+    } catch (error) {
+      console.error("Checkout error:", error);
+
+      alert(
+        "Cannot connect to backend. Make sure the server is running."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="container py-5">
-      <h1 className="fw-bold text-center mb-5">
-        Checkout
-      </h1>
+      <div className="row justify-content-center">
+        <div className="col-lg-8">
 
-      <div className="row">
-        <div className="col-md-7">
-          <div className="card shadow-sm p-4">
-            <h3 className="mb-4">Delivery Information</h3>
+          <div className="card shadow border-0">
+            <div className="card-body p-4 p-md-5">
 
-            <form onSubmit={handleSubmit}>
-              <div className="mb-3">
-                <label className="form-label">
-                  Full Name
-                </label>
+              <h1 className="text-center mb-4">
+                Checkout
+              </h1>
 
-                <input
-                  type="text"
-                  name="name"
-                  className="form-control"
-                  value={form.name}
-                  onChange={handleChange}
-                />
-              </div>
+              <h4 className="mb-3">
+                Order Summary
+              </h4>
 
-              <div className="mb-3">
-                <label className="form-label">
-                  Phone Number
-                </label>
+              {cart.length === 0 ? (
+                <div className="alert alert-warning">
+                  Your cart is empty.
+                </div>
+              ) : (
+                <div className="mb-4">
 
-                <input
-                  type="text"
-                  name="phone"
-                  className="form-control"
-                  value={form.phone}
-                  onChange={handleChange}
-                />
-              </div>
+                  {cart.map((item, index) => (
+                    <div
+                      key={item.id || index}
+                      className="d-flex justify-content-between border-bottom py-2"
+                    >
+                      <div>
+                        <strong>
+                          {item.name || item.title || "Food"}
+                        </strong>
 
-              <div className="mb-3">
-                <label className="form-label">
-                  Delivery Address
-                </label>
+                        <div className="text-muted">
+                          Quantity: {item.quantity || 1}
+                        </div>
+                      </div>
 
-                <textarea
-                  name="address"
-                  className="form-control"
-                  rows="3"
-                  value={form.address}
-                  onChange={handleChange}
-                ></textarea>
-              </div>
+                      <div>
+                        $
+                        {(
+                          (Number(item.price) || 0) *
+                          (Number(item.quantity) || 1)
+                        ).toFixed(2)}
+                      </div>
+                    </div>
+                  ))}
 
-              <div className="mb-4">
-                <label className="form-label">
-                  Payment Method
-                </label>
+                  <div className="d-flex justify-content-between mt-3">
+                    <h4>Total:</h4>
 
-                <select
-                  name="payment"
-                  className="form-select"
-                  value={form.payment}
-                  onChange={handleChange}
+                    <h4>
+                      ${total.toFixed(2)}
+                    </h4>
+                  </div>
+                </div>
+              )}
+
+              <h4 className="mb-3">
+                Delivery Information
+              </h4>
+
+              <form onSubmit={handleOrder}>
+
+                <div className="mb-3">
+                  <label className="form-label">
+                    Full Name
+                  </label>
+
+                  <input
+                    type="text"
+                    className="form-control"
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    placeholder="Enter your name"
+                    required
+                  />
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label">
+                    Phone Number
+                  </label>
+
+                  <input
+                    type="tel"
+                    className="form-control"
+                    name="phone"
+                    value={form.phone}
+                    onChange={handleChange}
+                    placeholder="+961 70 123 456"
+                    required
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="form-label">
+                    Delivery Address
+                  </label>
+
+                  <textarea
+                    className="form-control"
+                    name="address"
+                    value={form.address}
+                    onChange={handleChange}
+                    rows="3"
+                    placeholder="Enter your delivery address"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-warning w-100 fw-bold"
+                  disabled={loading || cart.length === 0}
                 >
-                  <option>Cash on Delivery</option>
-                  <option>Credit Card</option>
-                </select>
-              </div>
+                  {loading
+                    ? "Placing Order..."
+                    : `Place Order - $${total.toFixed(2)}`}
+                </button>
 
-              <button
-                type="submit"
-                className="btn btn-warning btn-lg w-100"
-              >
-                Place Order
-              </button>
-            </form>
+              </form>
+
+            </div>
           </div>
-        </div>
 
-        <div className="col-md-5">
-          <div className="card shadow-sm p-4">
-            <h3>Order Summary</h3>
-
-            <hr />
-
-            {cart.map((item) => (
-              <div
-                key={item.id}
-                className="d-flex justify-content-between mb-2"
-              >
-                <span>
-                  {item.name} × {item.quantity}
-                </span>
-
-                <span>
-                  ${item.price * item.quantity}
-                </span>
-              </div>
-            ))}
-
-            <hr />
-
-            <h4 className="d-flex justify-content-between">
-              <span>Total</span>
-              <span>${total.toFixed(2)}</span>
-            </h4>
-          </div>
         </div>
       </div>
     </div>

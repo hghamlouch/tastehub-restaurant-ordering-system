@@ -12,6 +12,8 @@ import About from "./pages/About";
 import Contact from "./pages/Contact";
 import Checkout from "./pages/Checkout";
 import OrderSuccess from "./pages/OrderSuccess";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 
 function App() {
   const [cart, setCart] = useState([]);
@@ -48,6 +50,9 @@ function App() {
 
       <Routes>
         <Route path="/" element={<Home />} />
+
+        <Route path="/login" element={<Login/>} />
+        <Route path="?signup" element={<Signup />} />
 
         <Route
           path="/menu"
