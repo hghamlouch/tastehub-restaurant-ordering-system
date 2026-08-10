@@ -12,7 +12,6 @@ function Checkout({ cart = [], clearCart }) {
 
   const [loading, setLoading] = useState(false);
 
-  // Calculate total
   const total = cart.reduce((sum, item) => {
     const price = Number(item.price) || 0;
     const quantity = Number(item.quantity) || 1;
@@ -30,19 +29,16 @@ function Checkout({ cart = [], clearCart }) {
   const handleOrder = async (e) => {
     e.preventDefault();
 
-    // Check delivery information
     if (!form.name || !form.phone || !form.address) {
       alert("Please fill in all fields.");
       return;
     }
 
-    // Check cart
     if (cart.length === 0) {
       alert("Your cart is empty.");
       return;
     }
 
-    // Get logged-in user
     const savedUser = localStorage.getItem("user");
 
     if (!savedUser) {
@@ -55,36 +51,33 @@ function Checkout({ cart = [], clearCart }) {
 
     try {
       user = JSON.parse(savedUser);
-    } catch (error) {
-      localStorage.removeItem("user");
+    } catch {
       alert("Please login again.");
       navigate("/login");
       return;
     }
-
-    if (!user || !user.id) {
-      alert("Please login again.");
-      navigate("/login");
-      return;
-    }
-
-    const userId = user.id;
 
     try {
       setLoading(true);
 
+      const items = cart.map((item) => ({
+        name: item.name,
+        quantity: Number(item.quantity) || 1,
+        price: Number(item.price) || 0,
+      }));
+
       const response = await fetch(
-        "http://localhost:5000/api/orders",
+        "https://tastehub-restaurant-ordering-system.onrender.com/api/orders",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-
           body: JSON.stringify({
-            user_id: userId,
+            user_id: user.id,
             total: total,
             status: "Pending",
+            items: items,
           }),
         }
       );
@@ -96,7 +89,7 @@ function Checkout({ cart = [], clearCart }) {
         return;
       }
 
-      console.log("Order created:", data);
+      console.log("Created Order:", data);
 
       if (clearCart) {
         clearCart();
@@ -104,11 +97,9 @@ function Checkout({ cart = [], clearCart }) {
 
       navigate("/order-success");
     } catch (error) {
-      console.error("Checkout error:", error);
+      console.error("Checkout Error:", error);
 
-      alert(
-        "Cannot connect to backend. Make sure the server is running."
-      );
+      alert("Cannot connect to backend.");
     } finally {
       setLoading(false);
     }
@@ -116,68 +107,58 @@ function Checkout({ cart = [], clearCart }) {
 
   return (
     <div className="container py-5">
-      <div className="row justify-content-center">
-        <div className="col-lg-8">
-
-          <div className="card shadow border-0">
-            <div className="card-body p-4 p-md-5">
-
-              <h1 className="text-center mb-4">
-                Checkout
-              </h1>
-
-              <h4 className="mb-3">
-                Order Summary
-              </h4>
+      <div className="row g-4">
+        <div className="col-lg-5">
+          <div className="card shadow-sm border-0">
+            <div className="card-body p-4">
+              <h3 className="mb-4">Order Summary</h3>
 
               {cart.length === 0 ? (
-                <div className="alert alert-warning">
-                  Your cart is empty.
-                </div>
+                <p>Your cart is empty.</p>
               ) : (
-                <div className="mb-4">
-
+                <>
                   {cart.map((item, index) => (
                     <div
                       key={item.id || index}
-                      className="d-flex justify-content-between border-bottom py-2"
+                      className="d-flex justify-content-between mb-3"
                     >
                       <div>
-                        <strong>
-                          {item.name || item.title || "Food"}
-                        </strong>
-
+                        <strong>{item.name}</strong>
                         <div className="text-muted">
-                          Quantity: {item.quantity || 1}
+                          Qty: {item.quantity || 1}
                         </div>
                       </div>
 
-                      <div>
+                      <span>
                         $
                         {(
                           (Number(item.price) || 0) *
                           (Number(item.quantity) || 1)
                         ).toFixed(2)}
-                      </div>
+                      </span>
                     </div>
                   ))}
 
-                  <div className="d-flex justify-content-between mt-3">
-                    <h4>Total:</h4>
+                  <hr />
 
-                    <h4>
-                      ${total.toFixed(2)}
-                    </h4>
+                  <div className="d-flex justify-content-between">
+                    <strong>Total</strong>
+                    <strong>${total.toFixed(2)}</strong>
                   </div>
-                </div>
+                </>
               )}
+            </div>
+          </div>
+        </div>
 
-              <h4 className="mb-3">
+        <div className="col-lg-7">
+          <div className="card shadow-sm border-0">
+            <div className="card-body p-4">
+              <h3 className="mb-4">
                 Delivery Information
-              </h4>
+              </h3>
 
               <form onSubmit={handleOrder}>
-
                 <div className="mb-3">
                   <label className="form-label">
                     Full Name
@@ -189,58 +170,52 @@ function Checkout({ cart = [], clearCart }) {
                     name="name"
                     value={form.name}
                     onChange={handleChange}
-                    placeholder="Enter your name"
                     required
                   />
                 </div>
 
                 <div className="mb-3">
                   <label className="form-label">
-                    Phone Number
+                    Phone
                   </label>
 
                   <input
-                    type="tel"
+                    type="text"
                     className="form-control"
                     name="phone"
                     value={form.phone}
                     onChange={handleChange}
-                    placeholder="+961 70 123 456"
                     required
                   />
                 </div>
 
                 <div className="mb-4">
                   <label className="form-label">
-                    Delivery Address
+                    Address
                   </label>
 
                   <textarea
                     className="form-control"
                     name="address"
+                    rows="4"
                     value={form.address}
                     onChange={handleChange}
-                    rows="3"
-                    placeholder="Enter your delivery address"
                     required
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="btn btn-warning w-100 fw-bold"
+                  className="btn btn-warning w-100"
                   disabled={loading || cart.length === 0}
                 >
                   {loading
                     ? "Placing Order..."
-                    : `Place Order - $${total.toFixed(2)}`}
+                    : "Place Order"}
                 </button>
-
               </form>
-
             </div>
           </div>
-
         </div>
       </div>
     </div>

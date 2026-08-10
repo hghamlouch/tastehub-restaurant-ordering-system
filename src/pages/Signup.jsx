@@ -25,7 +25,7 @@ function Signup() {
 
     try {
       const response = await fetch(
-        "http://localhost:5000/api/auth/signup",
+        "https://tastehub-restaurant-ordering-system.onrender.com/api/auth/signup",
         {
           method: "POST",
           headers: {

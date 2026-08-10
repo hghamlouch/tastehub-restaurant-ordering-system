@@ -3,9 +3,9 @@ const db = require("./db");
 
 const router = express.Router();
 
-// CREATE ORDER
+// CREATE ORDER + ORDER ITEMS
 router.post("/", async (req, res) => {
-  const { user_id, total, status } = req.body;
+  const { user_id, total, status, items } = req.body;
 
   if (!user_id || !total) {
     return res.status(400).json({
@@ -13,8 +13,18 @@ router.post("/", async (req, res) => {
     });
   }
 
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({
+      message: "Order items are required",
+    });
+  }
+
+  const client = await db.connect();
+
   try {
-    const result = await db.query(
+    await client.query("BEGIN");
+
+    const orderResult = await client.query(
       `
       INSERT INTO orders (user_id, total, status)
       VALUES ($1, $2, $3)
@@ -23,16 +33,40 @@ router.post("/", async (req, res) => {
       [user_id, total, status || "Pending"]
     );
 
+    const orderId = orderResult.rows[0].id;
+
+    for (const item of items) {
+      await client.query(
+        `
+        INSERT INTO order_items
+        (order_id, food_name, quantity, price)
+        VALUES ($1, $2, $3, $4)
+        `,
+        [
+          orderId,
+          item.name,
+          Number(item.quantity) || 1,
+          Number(item.price),
+        ]
+      );
+    }
+
+    await client.query("COMMIT");
+
     res.status(201).json({
       message: "Order created successfully",
-      orderId: result.rows[0].id,
+      orderId,
     });
   } catch (error) {
+    await client.query("ROLLBACK");
+
     console.error("Create order error:", error);
 
     res.status(500).json({
       message: "Database error",
     });
+  } finally {
+    client.release();
   }
 });
 
@@ -60,23 +94,45 @@ router.get("/", async (req, res) => {
   }
 });
 
-// READ ONE ORDER
+// READ ONE ORDER + ITS ITEMS
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-    const result = await db.query(
-      "SELECT * FROM orders WHERE id = $1",
+    const orderResult = await db.query(
+      `
+      SELECT
+        orders.*,
+        users.name AS user_name,
+        users.email
+      FROM orders
+      JOIN users
+        ON orders.user_id = users.id
+      WHERE orders.id = $1
+      `,
       [id]
     );
 
-    if (result.rows.length === 0) {
+    if (orderResult.rows.length === 0) {
       return res.status(404).json({
         message: "Order not found",
       });
     }
 
-    res.json(result.rows[0]);
+    const itemsResult = await db.query(
+      `
+      SELECT *
+      FROM order_items
+      WHERE order_id = $1
+      ORDER BY id ASC
+      `,
+      [id]
+    );
+
+    res.json({
+      ...orderResult.rows[0],
+      items: itemsResult.rows,
+    });
   } catch (error) {
     console.error("Read order error:", error);
 
@@ -101,7 +157,8 @@ router.put("/:id", async (req, res) => {
     const result = await db.query(
       `
       UPDATE orders
-      SET total = $1, status = $2
+      SET total = $1,
+          status = $2
       WHERE id = $3
       RETURNING id
       `,
@@ -130,8 +187,14 @@ router.put("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
 
+  const client = await db.connect();
+
   try {
-    const result = await db.query(
+    await client.query("BEGIN");
+
+    // This is technically handled by ON DELETE CASCADE,
+    // but deleting the order is enough to remove its items.
+    const result = await client.query(
       `
       DELETE FROM orders
       WHERE id = $1
@@ -141,20 +204,28 @@ router.delete("/:id", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      await client.query("ROLLBACK");
+
       return res.status(404).json({
         message: "Order not found",
       });
     }
 
+    await client.query("COMMIT");
+
     res.json({
       message: "Order deleted successfully",
     });
   } catch (error) {
+    await client.query("ROLLBACK");
+
     console.error("Delete order error:", error);
 
     res.status(500).json({
       message: "Database error",
     });
+  } finally {
+    client.release();
   }
 });
 
