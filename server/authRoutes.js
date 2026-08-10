@@ -14,66 +14,67 @@ router.post("/signup", async (req, res) => {
 
   if (!name || !email || !password) {
     return res.status(400).json({
-      message: "All fields are required"
+      message: "All fields are required",
     });
   }
 
   try {
+    const existingUser = await db.query(
+      "SELECT id FROM users WHERE email = $1",
+      [email]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({
+        message: "Email already exists",
+      });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const sql =
-      "INSERT INTO users (name, email, password) VALUES (?, ?, ?)";
+    await db.query(
+      `
+      INSERT INTO users (name, email, password)
+      VALUES ($1, $2, $3)
+      `,
+      [name, email, hashedPassword]
+    );
 
-    db.query(sql, [name, email, hashedPassword], (err, result) => {
-      if (err) {
-        if (err.code === "ER_DUP_ENTRY") {
-          return res.status(400).json({
-            message: "Email already exists"
-          });
-        }
-
-        return res.status(500).json({
-          message: "Database error"
-        });
-      }
-
-      res.status(201).json({
-        message: "User registered successfully"
-      });
+    res.status(201).json({
+      message: "User registered successfully",
     });
   } catch (error) {
+    console.error("Signup error:", error);
+
     res.status(500).json({
-      message: "Server error"
+      message: "Server error",
     });
   }
 });
 
 // LOGIN
-router.post("/login", (req, res) => {
+router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({
-      message: "Email and password are required"
+      message: "Email and password are required",
     });
   }
 
-  const sql = "SELECT * FROM users WHERE email = ?";
+  try {
+    const result = await db.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
 
-  db.query(sql, [email], async (err, results) => {
-    if (err) {
-      return res.status(500).json({
-        message: "Database error"
-      });
-    }
-
-    if (results.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(401).json({
-        message: "Invalid email or password"
+        message: "Invalid email or password",
       });
     }
 
-    const user = results[0];
+    const user = result.rows[0];
 
     const isMatch = await bcrypt.compare(
       password,
@@ -82,18 +83,18 @@ router.post("/login", (req, res) => {
 
     if (!isMatch) {
       return res.status(401).json({
-        message: "Invalid email or password"
+        message: "Invalid email or password",
       });
     }
 
     const token = jwt.sign(
       {
         id: user.id,
-        email: user.email
+        email: user.email,
       },
       JWT_SECRET,
       {
-        expiresIn: "2h"
+        expiresIn: "2h",
       }
     );
 
@@ -103,10 +104,16 @@ router.post("/login", (req, res) => {
       user: {
         id: user.id,
         name: user.name,
-        email: user.email
-      }
+        email: user.email,
+      },
     });
-  });
+  } catch (error) {
+    console.error("Login error:", error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
 });
 
 module.exports = router;
