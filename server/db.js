@@ -1,12 +1,14 @@
 const mysql = require("mysql2");
 
-const db = mysql.createConnection({
-  host: process.env.DB_HOST || "localhost",
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "tastehub_db",
-  port: process.env.DB_PORT || 3306,
-});
+const db = process.env.DATABASE_URL
+  ? mysql.createConnection(process.env.DATABASE_URL)
+  : mysql.createConnection({
+      host: "localhost",
+      user: "root",
+      password: "",
+      database: "tastehub_db",
+      port: 3306,
+    });
 
 db.connect((err) => {
   if (err) {
