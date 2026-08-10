@@ -42,14 +42,11 @@ function Login() {
       }
 
       localStorage.setItem("token", data.token);
-      localStorage.setItem(
-        "user",
-        JSON.stringify(data.user)
-      );
+      localStorage.setItem("user",JSON.stringify(data.user));
+      
 
       alert("Login successful!");
-
-      navigate("/");
+      window.location.href = "/";
     } catch (error) {
       console.error(error);
       setMessage("Cannot connect to backend");
