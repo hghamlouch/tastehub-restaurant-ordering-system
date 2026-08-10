@@ -14,6 +14,8 @@ import Checkout from "./pages/Checkout";
 import OrderSuccess from "./pages/OrderSuccess";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import MyOrders from "./pages/MyOrders";
+import OrderDetails from "./pages/OrderDetails";
 
 function App() {
   const [cart, setCart] = useState([]);
@@ -53,7 +55,8 @@ function App() {
 
         <Route path="/login" element={<Login/>} />
         <Route path="?signup" element={<Signup />} />
-
+        <Route path="/my-orders" element={<MyOrders />}/>
+        <Route path="/orders/:id" element={<OrderDetails/>}/>
         <Route
           path="/menu"
           element={<Menu addToCart={addToCart} />}

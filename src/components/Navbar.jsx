@@ -22,7 +22,6 @@ function Navbar({ cart = [] }) {
     localStorage.removeItem("user");
 
     setUser(null);
-
     navigate("/login");
   };
 
@@ -90,6 +89,12 @@ function Navbar({ cart = [] }) {
               </>
             ) : (
               <>
+                <li className="nav-item">
+                  <Link className="nav-link" to="/my-orders">
+                    My Orders
+                  </Link>
+                </li>
+
                 <li className="nav-item">
                   <span className="nav-link text-warning">
                     Hello, {user.name}
